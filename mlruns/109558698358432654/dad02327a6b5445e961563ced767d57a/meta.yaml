@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/lashandawilliams/Immune_Recovery_Ordinal_Model_Malaria_scRNAseq/mlruns/109558698358432654/dad02327a6b5445e961563ced767d57a/artifacts
+end_time: 1766959181424
+entry_point_name: ''
+experiment_id: '109558698358432654'
+lifecycle_stage: active
+run_id: dad02327a6b5445e961563ced767d57a
+run_name: ordinal_logistic
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1766959179633
+status: 3
+tags: []
+user_id: lashandawilliams

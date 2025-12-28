@@ -55,14 +55,41 @@ from sklearn.metrics import (
 
 from statsmodels.miscmodels.ordinal_model import OrderedModel
 from sklearn.preprocessing import label_binarize
+import mlflow
+import mlflow.sklearn
+
+
 
 
 # ============================================================
 # Setup
 # ============================================================
 
-RESULTS_DIR = "/Users/lashandawilliams/Immune_Recovery_Ordinal_Model_Malaria_scRNAseq/03_results/"
+RESULTS_DIR = os.getenv("HOSTSCOPE_RESULTS_DIR", "03_results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
+os.makedirs(os.path.join(RESULTS_DIR, "figures", "modeling"), exist_ok=True)
+os.makedirs(os.path.join(RESULTS_DIR, "tables"), exist_ok=True)
+
+# ============================================================
+# MLflow setup (optional but recommended)
+# ============================================================
+# Configure via environment variables:
+#   MLFLOW_TRACKING_URI        (e.g., http://localhost:5000 or file:./mlruns)
+#   MLFLOW_EXPERIMENT_NAME     (default: HostScope)
+#   MLFLOW_RUN_NAME            (default: HostScope_LOPO_Modeling)
+#
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", None)
+MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "HostScope")
+
+if MLFLOW_TRACKING_URI:
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+def _log_artifact_if_exists(path: str):
+    if path and os.path.exists(path):
+        mlflow.log_artifact(path)
+
 
 
 # ============================================================
@@ -394,22 +421,103 @@ def run_ordinal_logistic(df, return_artifacts=False):
 
 if __name__ == "__main__":
 
-    df_pairwise = pd.read_csv(
-        "/Users/lashandawilliams/Immune_Recovery_Ordinal_Model_Malaria_scRNAseq/01_data/processed/hostscope_features_pairwise_D0_vs_D28.csv"
+    df_pairwise_path = os.getenv(
+        "HOSTSCOPE_PAIRWISE_CSV",
+        os.path.join("01_data", "processed", "hostscope_features_pairwise_D0_vs_D28.csv"),
+    )
+    df_ordinal_path = os.getenv(
+        "HOSTSCOPE_ORDINAL_CSV",
+        os.path.join("01_data", "processed", "hostscope_features_ordinal_D0_D7_D28.csv"),
     )
 
-    df_ordinal = pd.read_csv(
-        "/Users/lashandawilliams/Immune_Recovery_Ordinal_Model_Malaria_scRNAseq/01_data/processed/hostscope_features_ordinal_D0_D7_D28.csv"
-    )
+    df_pairwise = pd.read_csv(df_pairwise_path)
+    df_ordinal = pd.read_csv(df_ordinal_path)
 
+    
+    # ============================================================
+    # MLflow: top-level run for this execution
+    # ============================================================
+    run_name = os.getenv("MLFLOW_RUN_NAME", "HostScope_LOPO_Modeling")
+    with mlflow.start_run(run_name=run_name):
 
-    pairwise_folds, pairwise_overall = run_pairwise_logistic(df_pairwise)
-    ordinal_folds, ordinal_overall = run_ordinal_logistic(df_ordinal)
+        # Log high-level context
+        mlflow.set_tag("project", "HostScope")
+        mlflow.set_tag("cv_scheme", "LOPO")
+        mlflow.set_tag("task_pairwise", "Day0_vs_Day28")
+        mlflow.set_tag("task_ordinal", "Day0_lt_Day7_lt_Day28")
 
-    metrics_df = pd.DataFrame(pairwise_folds + ordinal_folds)
-    metrics_df.to_csv(f"{RESULTS_DIR}/tables/hostscope_fold_metrics.csv", index=False)
+        # Log dataset locations (lightweight + reproducible)
+        mlflow.log_param(
+            "features_pairwise_path",
+            os.path.relpath(df_pairwise_path) if os.path.exists(df_pairwise_path) else df_pairwise_path
+        )
+        mlflow.log_param(
+            "features_ordinal_path",
+            os.path.relpath(df_ordinal_path) if os.path.exists(df_ordinal_path) else df_ordinal_path
+        )
 
-    overall_df = pd.DataFrame([pairwise_overall, ordinal_overall])
-    overall_df.to_csv(f"{RESULTS_DIR}/tables/hostscope_overall_metrics.csv", index=False)
+        # ---------------------------
+        # Pairwise model run
+        # ---------------------------
+        with mlflow.start_run(run_name="pairwise_logistic", nested=True):
+            mlflow.set_tag("model", "logistic_regression")
+            mlflow.set_tag("task", "pairwise")
+            mlflow.log_params({
+                "penalty": "l2",
+                "C": 1.0,
+                "solver": "liblinear",
+                "max_iter": 1000
+            })
+
+            pairwise_folds, pairwise_overall = run_pairwise_logistic(df_pairwise)
+
+            # Log overall metrics
+            mlflow.log_metrics({
+                "balanced_accuracy": float(pairwise_overall.get("balanced_accuracy", np.nan)),
+                "auc": float(pairwise_overall.get("auc", np.nan)),
+                "mae": float(pairwise_overall.get("mae", np.nan)),
+            })
+
+            # Log key artifacts produced by this run
+            _log_artifact_if_exists(f"{RESULTS_DIR}/tables/classification_report_pairwise.csv")
+            _log_artifact_if_exists(f"{RESULTS_DIR}/figures/modeling/confusion_pairwise.png")
+            _log_artifact_if_exists(f"{RESULTS_DIR}/figures/modeling/confusion_pairwise_normalized.png")
+
+        # ---------------------------
+        # Ordinal model run
+        # ---------------------------
+        with mlflow.start_run(run_name="ordinal_logistic", nested=True):
+            mlflow.set_tag("model", "ordered_logit")
+            mlflow.set_tag("task", "ordinal")
+            mlflow.log_params({
+                "distr": "logit",
+                "fit_method": "bfgs"
+            })
+
+            ordinal_folds, ordinal_overall = run_ordinal_logistic(df_ordinal)
+
+            mlflow.log_metrics({
+                "balanced_accuracy": float(ordinal_overall.get("balanced_accuracy", np.nan)),
+                "auc": float(ordinal_overall.get("auc", np.nan)),
+                "mae": float(ordinal_overall.get("mae", np.nan)),
+            })
+
+            _log_artifact_if_exists(f"{RESULTS_DIR}/tables/classification_report_ordinal.csv")
+            _log_artifact_if_exists(f"{RESULTS_DIR}/figures/modeling/confusion_ordinal.png")
+            _log_artifact_if_exists(f"{RESULTS_DIR}/figures/modeling/confusion_ordinal_normalized.png")
+
+        # ---------------------------
+        # Combined summary tables
+        # ---------------------------
+        metrics_df = pd.DataFrame(pairwise_folds + ordinal_folds)
+        metrics_path = f"{RESULTS_DIR}/tables/hostscope_fold_metrics.csv"
+        metrics_df.to_csv(metrics_path, index=False)
+
+        overall_df = pd.DataFrame([pairwise_overall, ordinal_overall])
+        overall_path = f"{RESULTS_DIR}/tables/hostscope_overall_metrics.csv"
+        overall_df.to_csv(overall_path, index=False)
+
+        mlflow.log_artifact(metrics_path)
+        mlflow.log_artifact(overall_path)
 
 

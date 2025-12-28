@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/lashandawilliams/Immune_Recovery_Ordinal_Model_Malaria_scRNAseq/mlruns/109558698358432654/7754e81f24544318841a87484aea3ca2/artifacts
+end_time: 1766959181426
+entry_point_name: ''
+experiment_id: '109558698358432654'
+lifecycle_stage: active
+run_id: 7754e81f24544318841a87484aea3ca2
+run_name: HostScope_LOPO_Modeling
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1766959179197
+status: 3
+tags: []
+user_id: lashandawilliams
