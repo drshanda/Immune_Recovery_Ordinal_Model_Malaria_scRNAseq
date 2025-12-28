@@ -258,14 +258,6 @@ This project is best understood not as a recovery classifier, but as a **framewo
 
 ## 9. Running the Project
 
-Here is a **clean, accurate rewrite** of that README section using your **actual file paths, folder structure, and Docker layout**, written for clarity and skim-readability.
-
-You can drop this in verbatim.
-
----
-
-## 9. Running the Project
-
 HostScope can be run either **natively** (Python/R) or via **Docker**. Processed feature matrices are retrieved using DVC.
 
 ---
