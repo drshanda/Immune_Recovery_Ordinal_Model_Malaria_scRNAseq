@@ -149,8 +149,7 @@ Key findings:
 * Recovery is dominated by RNA processing, ribosome biogenesis, and translational reconstitution.
 * Acute infection is dominated by immune activation, chemotaxis, and inflammatory signaling.
 * Intermediate states show overlapping distributions, explaining ordinal ambiguity and SHAP compression.
-
-SHAP and GSEA converge on a coherent mechanistic narrative of immune recovery.
+* SHAP and GSEA converge on a coherent mechanistic narrative of immune recovery.
 ---
 
 ## 5. MLOps Components
